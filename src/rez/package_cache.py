@@ -188,7 +188,14 @@ class PackageCache(object):
                 "Not cached - variant %s root does not appear on disk: %s"
                 % (variant.uri, variant_root)
             )
-
+        
+        copy_function = shutil.copy2
+        if (
+            config.package_cache_copy_function is not None 
+            and callable(config.package_cache_copy_function)
+        ):
+            copy_function = config.package_cache_copy_function
+            
         if not force:
             # package is configured to not be cachable
             if not package.is_cachable:
@@ -325,7 +332,7 @@ class PackageCache(object):
         th.start()
 
         try:
-            shutil.copytree(variant_root, rootpath)
+            shutil.copytree(variant_root, rootpath, copy_function=copy_function)
         finally:
             still_copying = False
 

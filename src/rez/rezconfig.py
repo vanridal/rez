@@ -302,6 +302,13 @@ package_cache_clean_limit = 0.5
 # Logs are written to :file:`{pkg-cache-root}/.sys/log/{filename}.log`
 package_cache_log_days = 7
 
+# Function call to provide to shutil.copytree(src, dst, copy_function=shutil.copy2)
+# when a cache of a pkg is invoked
+# Copy function is the default shutil.copy2 when this setting is None
+#
+# .. versionadded:: ?
+package_cache_copy_function = None
+
 
 ###############################################################################
 # Package Resolution
