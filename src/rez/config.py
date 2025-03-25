@@ -373,6 +373,7 @@ config_schema = Schema({
     "default_cachable_per_package":                 OptionalDict,
     "default_cachable_per_repository":              OptionalDict,
     "default_cachable":                             OptionalBool,
+    "package_cache_copy_function":                  OptionalStrOrFunction,
     "implicit_packages":                            StrList,
     "parent_variables":                             StrList,
     "resetting_variables":                          StrList,
