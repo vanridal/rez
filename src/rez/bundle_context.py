@@ -100,8 +100,8 @@ class _ContextBundler(object):
 
         if self.update:
             if not self._get_update_diff():
-               print_info("Contexts are the same, no need to update")
-               return
+                print_info("Contexts are the same, no need to update")
+                return
             self._remove_packages()
 
         # initialize the bundle
@@ -160,7 +160,7 @@ class _ContextBundler(object):
         # write metafile
         bundle_metafile = os.path.join(self.dest_dir, "bundle.yaml")
         save_yaml(bundle_metafile, logs=self.logs)
-    
+
     def _get_update_diff(self):
         newer_packages = set()
         older_packages = set()
@@ -178,9 +178,9 @@ class _ContextBundler(object):
         if not add_packages and not remove_packages:
             return
         self.updatable_packages = {
-            'add_packages': self._resolve_variants(add_packages), 
+            'add_packages': self._resolve_variants(add_packages),
             'remove_packages': remove_packages
-            }
+        }
         return True
 
     def _copy_variants(self):
@@ -219,18 +219,18 @@ class _ContextBundler(object):
             relocated_package_names.append(package.name)
 
         return relocated_package_names
-    
+
     def _remove_packages(self):
         for pkg in self.updatable_packages.get('remove_packages', []):
-            remove_package_family(pkg.name, self._repo_path)
+            remove_package_family(pkg.name, self._repo_path, force=True)
 
     def _resolve_variants(self, packages):
         result = []
         for pkg in packages:
-            variant = self.context.get_resolved_package(pkg.name)     
+            variant = self.context.get_resolved_package(pkg.name)
             result.append(variant)
         return result
-    
+
     def _write_retargeted_context(self, relocated_package_names):
         rxt_filepath = os.path.join(self.dest_dir, "context.rxt")
 
