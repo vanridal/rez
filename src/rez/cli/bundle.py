@@ -21,6 +21,9 @@ def setup_parser(parser, completions=False):
     group.add_argument(
         "-n", "--no-lib-patch", action="store_true",
         help="don't apply library patching within the bundle")
+    group.add_argument(
+        "-u", "--update", action="store_true",
+        help="Update current bundle with new context")
     parser.add_argument(
         "RXT",
         help="context to bundle")
@@ -50,5 +53,6 @@ def command(opts, parser, extra_arg_groups=None):
         force=opts.force,
         skip_non_relocatable=opts.skip_non_relocatable,
         verbose=opts.verbose,
-        patch_libs=(not opts.no_lib_patch)
+        patch_libs=(not opts.no_lib_patch),
+        update=opts.update
     )

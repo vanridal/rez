@@ -13,10 +13,13 @@ from rez.utils.yaml import save_yaml
 from rez.utils.platform_ import platform_
 from rez.utils.filesystem import is_subdirectory
 from rez.util import which
+from rez.resolved_context import ResolvedContext
+from rez.version import VersionedObject
+from rez.package_remove import remove_package_family
 
 
 def bundle_context(context, dest_dir, force=False, skip_non_relocatable=False,
-                   quiet=False, patch_libs=False, verbose=False):
+                   quiet=False, patch_libs=False, update=False, verbose=False):
     """Bundle a context and its variants into a relocatable dir.
 
     This creates a copy of a context with its variants retargeted to a local
@@ -53,6 +56,7 @@ def bundle_context(context, dest_dir, force=False, skip_non_relocatable=False,
         skip_non_relocatable=skip_non_relocatable,
         patch_libs=patch_libs,
         quiet=quiet,
+        update=update,
         verbose=verbose
     )
 
@@ -63,7 +67,7 @@ class _ContextBundler(object):
     """Performs context bundling.
     """
     def __init__(self, context, dest_dir, force=False, skip_non_relocatable=False,
-                 quiet=False, patch_libs=False, verbose=False):
+                 quiet=False, patch_libs=False, update=False, verbose=False):
         if quiet:
             verbose = False
         if force:
@@ -76,6 +80,7 @@ class _ContextBundler(object):
         self.quiet = quiet
         self.patch_libs = patch_libs
         self.verbose = verbose
+        self.update = update
 
         self.logs = []
 
@@ -83,14 +88,21 @@ class _ContextBundler(object):
         # key: package name
         # value: (Variant, Variant) (src and dest variants)
         self.copied_variants = {}
+        self.updatable_packages = {}
 
     def bundle(self):
-        if os.path.exists(self.dest_dir):
-            raise ContextBundleError("Dest dir must not exist: %s" % self.dest_dir)
+        if os.path.exists(self.dest_dir) and not self.update:
+            raise ContextBundleError("Dest dir must not exist unless set 'update' option: %s" % self.dest_dir)
 
         if not self.quiet:
             label = self.context.load_path or "context"
             print_info("Bundling %s into %s...", label, self.dest_dir)
+
+        if self.update:
+            if not self._get_update_diff():
+               print_info("Contexts are the same, no need to update")
+               return
+            self._remove_packages()
 
         # initialize the bundle
         self._init_bundle()
@@ -123,9 +135,10 @@ class _ContextBundler(object):
         print_warning(msg, *nargs)
         self.logs.append("WARNING: %s" % (msg % nargs))
 
-    def _init_bundle(self):
-        os.mkdir(self.dest_dir)
-        os.mkdir(self._repo_path)
+    def _init_bundle(self, update=False):
+        if not self.update:
+            os.mkdir(self.dest_dir)
+            os.mkdir(self._repo_path)
 
         # bundle.yaml needs to be written even though it's currently empty.
         # This file is used to detect that this is a bundle when the rxt is
@@ -147,11 +160,37 @@ class _ContextBundler(object):
         # write metafile
         bundle_metafile = os.path.join(self.dest_dir, "bundle.yaml")
         save_yaml(bundle_metafile, logs=self.logs)
+    
+    def _get_update_diff(self):
+        newer_packages = set()
+        older_packages = set()
+
+        current_bundle_rxt = os.path.join(self.dest_dir, "context.rxt")
+        current_context = ResolvedContext.load(current_bundle_rxt)
+
+        for variant in self.context.resolved_packages:
+            newer_packages.add(VersionedObject(variant.name + '-' + str(variant.version)))
+        for variant in current_context.resolved_packages:
+            older_packages.add(VersionedObject(variant.name + '-' + str(variant.version)))
+
+        add_packages = newer_packages.difference(older_packages)
+        remove_packages = older_packages.difference(newer_packages)
+        if not add_packages and not remove_packages:
+            return
+        self.updatable_packages = {
+            'add_packages': self._resolve_variants(add_packages), 
+            'remove_packages': remove_packages
+            }
+        return True
 
     def _copy_variants(self):
         relocated_package_names = []
+        if self.update:
+            copy_list = sorted(self.updatable_packages.get('add_packages', []))
+        else:
+            copy_list = self.context.resolved_packages
 
-        for variant in self.context.resolved_packages:
+        for variant in copy_list:
             package = variant.parent
 
             if self.skip_non_relocatable and not package.is_relocatable:
@@ -180,7 +219,18 @@ class _ContextBundler(object):
             relocated_package_names.append(package.name)
 
         return relocated_package_names
+    
+    def _remove_packages(self):
+        for pkg in self.updatable_packages.get('remove_packages', []):
+            remove_package_family(pkg.name, self._repo_path)
 
+    def _resolve_variants(self, packages):
+        result = []
+        for pkg in packages:
+            variant = self.context.get_resolved_package(pkg.name)     
+            result.append(variant)
+        return result
+    
     def _write_retargeted_context(self, relocated_package_names):
         rxt_filepath = os.path.join(self.dest_dir, "context.rxt")
 
