@@ -9,7 +9,7 @@ import stat
 from rez.package_copy import copy_package
 from rez.exceptions import ContextBundleError
 from rez.utils.logging_ import print_info, print_warning
-from rez.utils.yaml import save_yaml
+from rez.utils.yaml import save_yaml, load_yaml
 from rez.utils.platform_ import platform_
 from rez.utils.filesystem import is_subdirectory
 from rez.util import which
@@ -81,6 +81,7 @@ class _ContextBundler(object):
         self.patch_libs = patch_libs
         self.verbose = verbose
         self.update = update
+        self.bundle_metafile = os.path.join(self.dest_dir, "bundle.yaml")
 
         self.logs = []
 
@@ -100,13 +101,17 @@ class _ContextBundler(object):
 
         if self.update:
             if not self._get_update_diff():
-                print_info("Contexts are the same, no need to update")
+                if not self.quiet:
+                    print_info("Contexts are the same, no need to update")
                 return
-            self._remove_packages()
+            if not self.quiet:
+                print_info("Updating bundle ...")
 
         # initialize the bundle
         self._init_bundle()
 
+        if self.update:
+            self._remove_packages()
         # copy the variants from the context into the bundle
         relocated_package_names = self._copy_variants()
 
@@ -139,14 +144,15 @@ class _ContextBundler(object):
         if not self.update:
             os.mkdir(self.dest_dir)
             os.mkdir(self._repo_path)
-
+        else:
+            past_logs = load_yaml(self.bundle_metafile)
+            if past_logs:
+                self.logs = past_logs.get('logs', [])
         # bundle.yaml needs to be written even though it's currently empty.
         # This file is used to detect that this is a bundle when the rxt is
         # written (which is needed so variant handle location paths can be made
         # relative).
-        #
-        bundle_metafile = os.path.join(self.dest_dir, "bundle.yaml")
-        with open(bundle_metafile, 'w'):
+        with open(self.bundle_metafile, 'w'):
             pass
 
         # Bundled repos are always memcached disabled because they're on local disk
@@ -158,14 +164,18 @@ class _ContextBundler(object):
 
     def _finalize_bundle(self):
         # write metafile
-        bundle_metafile = os.path.join(self.dest_dir, "bundle.yaml")
-        save_yaml(bundle_metafile, logs=self.logs)
+        save_yaml(self.bundle_metafile, logs=self.logs)
 
     def _get_update_diff(self):
         newer_packages = set()
         older_packages = set()
 
         current_bundle_rxt = os.path.join(self.dest_dir, "context.rxt")
+        if not os.path.isfile(current_bundle_rxt):
+            raise ContextBundleError(
+                'You have have specified to update a bundle, '
+                'but no context.rxt could be found'
+            )
         current_context = ResolvedContext.load(current_bundle_rxt)
 
         for variant in self.context.resolved_packages:
@@ -216,12 +226,13 @@ class _ContextBundler(object):
             self.copied_variants[package.name] = (src_variant, dest_variant)
             self._info("Copied %s to %s", src_variant.uri, dest_variant.uri)
 
-            relocated_package_names.append(package.name)
+        relocated_package_names = [v.parent.name for v in self.context.resolved_packages]
 
         return relocated_package_names
 
     def _remove_packages(self):
         for pkg in self.updatable_packages.get('remove_packages', []):
+            self._info("Removed package %s-%s", pkg.name, pkg.version)
             remove_package_family(pkg.name, self._repo_path, force=True)
 
     def _resolve_variants(self, packages):
