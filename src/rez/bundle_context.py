@@ -193,6 +193,11 @@ class _ContextBundler(object):
         }
         return True
 
+    def _is_relocatable_skip(self, package):
+        if self.skip_non_relocatable and not package.is_relocatable:
+            return True
+        return False
+
     def _copy_variants(self):
         relocated_package_names = []
         if self.update:
@@ -203,7 +208,7 @@ class _ContextBundler(object):
         for variant in copy_list:
             package = variant.parent
 
-            if self.skip_non_relocatable and not package.is_relocatable:
+            if self._is_relocatable_skip(package):
                 self._warning(
                     "Skipped bundling of non-relocatable package %s",
                     package.qualified_name
@@ -226,7 +231,11 @@ class _ContextBundler(object):
             self.copied_variants[package.name] = (src_variant, dest_variant)
             self._info("Copied %s to %s", src_variant.uri, dest_variant.uri)
 
-        relocated_package_names = [v.parent.name for v in self.context.resolved_packages]
+        relocated_package_names = [
+            v.parent.name
+            for v in self.context.resolved_packages
+            if not self._is_relocatable_skip(v.parent)
+        ]
 
         return relocated_package_names
 
