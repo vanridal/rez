@@ -15,7 +15,7 @@ from rez.utils.filesystem import is_subdirectory
 from rez.util import which
 from rez.resolved_context import ResolvedContext
 from rez.version import VersionedObject
-from rez.package_remove import remove_package_family
+from rez.package_remove import remove_package_family, remove_package
 
 
 def bundle_context(context, dest_dir, force=False, skip_non_relocatable=False,
@@ -110,13 +110,14 @@ class _ContextBundler(object):
         # initialize the bundle
         self._init_bundle()
 
-        if self.update:
-            self._remove_packages()
         # copy the variants from the context into the bundle
         relocated_package_names = self._copy_variants()
 
         # write a copy of the context, with refs changed to bundled variants
         self._write_retargeted_context(relocated_package_names)
+
+        if self.update:
+            self._remove_packages()
 
         # apply patching to retarget dynamic linker to bundled packages
         if self.patch_libs:
@@ -145,6 +146,7 @@ class _ContextBundler(object):
             os.mkdir(self.dest_dir)
             os.mkdir(self._repo_path)
         else:
+            # get previous logs to append new lines
             past_logs = load_yaml(self.bundle_metafile)
             if past_logs:
                 self.logs = past_logs.get('logs', [])
@@ -174,7 +176,7 @@ class _ContextBundler(object):
         if not os.path.isfile(current_bundle_rxt):
             raise ContextBundleError(
                 'You have have specified to update a bundle, '
-                'but no context.rxt could be found'
+                'but no context.rxt could be found at {}'.format(current_bundle_rxt)
             )
         current_context = ResolvedContext.load(current_bundle_rxt)
 
@@ -186,14 +188,14 @@ class _ContextBundler(object):
         add_packages = newer_packages.difference(older_packages)
         remove_packages = older_packages.difference(newer_packages)
         if not add_packages and not remove_packages:
-            return
+            return False
         self.updatable_packages = {
-            'add_packages': self._resolve_variants(add_packages),
-            'remove_packages': remove_packages
+            'add_packages': self._resolve_variants(add_packages),  # we install variants
+            'remove_packages': remove_packages  # we remove packages
         }
         return True
 
-    def _is_relocatable_skip(self, package):
+    def _is_non_relocatable_skip(self, package):
         if self.skip_non_relocatable and not package.is_relocatable:
             return True
         return False
@@ -201,14 +203,16 @@ class _ContextBundler(object):
     def _copy_variants(self):
         relocated_package_names = []
         if self.update:
-            copy_list = sorted(self.updatable_packages.get('add_packages', []))
+            copy_list = sorted(
+                self.updatable_packages.get('add_packages', []), key=lambda x: x.name
+            )
         else:
             copy_list = self.context.resolved_packages
 
         for variant in copy_list:
             package = variant.parent
 
-            if self._is_relocatable_skip(package):
+            if self._is_non_relocatable_skip(package):
                 self._warning(
                     "Skipped bundling of non-relocatable package %s",
                     package.qualified_name
@@ -234,7 +238,7 @@ class _ContextBundler(object):
         relocated_package_names = [
             v.parent.name
             for v in self.context.resolved_packages
-            if not self._is_relocatable_skip(v.parent)
+            if not self._is_non_relocatable_skip(v.parent)
         ]
 
         return relocated_package_names
@@ -242,13 +246,24 @@ class _ContextBundler(object):
     def _remove_packages(self):
         for pkg in self.updatable_packages.get('remove_packages', []):
             self._info("Removed package %s-%s", pkg.name, pkg.version)
-            remove_package_family(pkg.name, self._repo_path, force=True)
+            try:
+                remove_package(pkg.name, pkg.version, self._repo_path)
+            except:
+                self._warning(
+                    "Failed removing package %s-%s from %s", pkg.name, pkg.version, self._repo_path
+                )
+            try:
+                if not os.listdir(os.path.join(self._repo_path, pkg.name)):
+                    remove_package_family(pkg.name, self._repo_path)
+            except:
+                self._warning(
+                    "Failed removing unused family %s from %s", pkg.name, self._repo_path
+                )
 
     def _resolve_variants(self, packages):
         result = []
         for pkg in packages:
-            variant = self.context.get_resolved_package(pkg.name)
-            result.append(variant)
+            result.append(self.context.get_resolved_package(pkg.name))
         return result
 
     def _write_retargeted_context(self, relocated_package_names):
