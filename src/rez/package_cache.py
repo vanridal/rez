@@ -184,7 +184,7 @@ class PackageCache(object):
                 % variant.uri
             )
 
-        if not os.path.isdir(variant_root):
+        if not variant.exists():
             raise PackageCacheError(
                 "Not cached - variant %s root does not appear on disk: %s"
                 % (variant.uri, variant_root)
@@ -207,7 +207,7 @@ class PackageCache(object):
 
             if not config.package_cache_same_device:
                 st_pkgcache = os.stat(self.path)
-                st_variant = os.stat(variant_root)
+                st_variant = variant.stat()
                 if st_pkgcache.st_dev == st_variant.st_dev:
                     raise PackageCacheError(
                         "Not cached - variant %s is on same device as cache: %s"
