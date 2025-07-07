@@ -15,6 +15,7 @@ import sys
 import platform
 import time
 import logging
+import logging.config
 import random
 import threading
 from contextlib import contextmanager
@@ -183,18 +184,11 @@ class PackageCache(object):
                 % variant.uri
             )
 
-        if not os.path.isdir(variant_root):
+        if not variant.exists():
             raise PackageCacheError(
                 "Not cached - variant %s root does not appear on disk: %s"
                 % (variant.uri, variant_root)
             )
-
-        copy_function = shutil.copy2
-        if (
-            config.package_cache_copy_function is not None
-            and callable(config.package_cache_copy_function)
-        ):
-            copy_function = config.package_cache_copy_function
 
         if not force:
             # package is configured to not be cachable
@@ -213,7 +207,7 @@ class PackageCache(object):
 
             if not config.package_cache_same_device:
                 st_pkgcache = os.stat(self.path)
-                st_variant = os.stat(variant_root)
+                st_variant = variant.stat()
                 if st_pkgcache.st_dev == st_variant.st_dev:
                     raise PackageCacheError(
                         "Not cached - variant %s is on same device as cache: %s"
@@ -332,7 +326,7 @@ class PackageCache(object):
         th.start()
 
         try:
-            shutil.copytree(variant_root, rootpath, copy_function=copy_function)
+            variant.repository.cache_variant(variant, rootpath)
         finally:
             still_copying = False
 
@@ -853,6 +847,11 @@ class PackageCache(object):
           manually (hence the logging to stdout also)
         """
         logger = logging.getLogger("rez-pkg-cache")
+        logging_conf = os.getenv("REZ_LOGGING_CONF")
+        if logging_conf:
+            logging.config.fileConfig(logging_conf, disable_existing_loggers=False)
+            return logger
+
         logger.setLevel(logging.INFO)
         logger.propagate = False
 
