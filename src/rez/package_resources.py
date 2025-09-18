@@ -124,6 +124,7 @@ package_base_schema_dict.update({
     Optional('requires'):               late_bound([PackageRequest]),
     Optional('build_requires'):         late_bound([PackageRequest]),
     Optional('private_build_requires'): late_bound([PackageRequest]),
+    Optional('provides'):               late_bound([PackageRequest]),
 
     # plugins
     Optional('has_plugins'):            late_bound(bool),
@@ -218,6 +219,7 @@ package_pod_schema_dict.update({
     Optional('requires'):               late_bound([_package_request_schema]),
     Optional('build_requires'):         late_bound([_package_request_schema]),
     Optional('private_build_requires'): late_bound([_package_request_schema]),
+    Optional('provides'):               late_bound([_package_request_schema]),
 
     # deliberately not possible to late bind
     Optional('variants'):               [[_package_request_schema]],

@@ -408,8 +408,20 @@ class Variant(PackageBaseResourceWrapper):
             List of `Requirement` objects.
         """
         return (
-            (self.parent.requires or []) + self.variant_requires
+            (self.parent.requires or []) + self.variant_requires + self.provides
         )
+
+    @property
+    def provides(self):
+        """Get variant provided packages.
+
+        This is a concatenation of the packages that are provided in the 
+        variant's payload
+
+        Returns:
+            List of `Requirement` objects.
+        """
+        return (self.parent.provides or [])
 
     def get_requires(self, build_requires=False, private_build_requires=False):
         """Get the requirements of the variant.

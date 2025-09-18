@@ -329,6 +329,7 @@ class ResolvedContext(object):
         self.failure_description = resolver.failure_description
         self.graph_ = resolver.graph
         self.from_cache = resolver.from_cache
+        self._resolved_provides = None
 
         if self.status_ == ResolverStatus.solved:
             self._resolved_packages = []
@@ -402,6 +403,20 @@ class ResolvedContext(object):
             typing.Optional[list[Requirement]]: Requirement objects, or None if the resolve failed.
         """
         return self._resolved_ephemerals
+
+    @property
+    def resolved_provides(self):
+        """Get packages provided by other packages.
+
+        Returns:
+            typing.Optional[list[Requirement]]: Requirement objects, or None if the resolve failed.
+        """
+        if self._resolved_provides is None:
+            self._resolved_provides = []
+            for pkg in self.resolved_packages:
+                self._resolved_provides += pkg.provides
+
+        return self._resolved_provides
 
     def set_load_path(self, path):
         """Set the path that this context was reportedly loaded from.
@@ -2095,6 +2110,8 @@ class ResolvedContext(object):
             for pkg in resolved_pkgs:
                 commands = getattr(pkg, attr)
                 if commands is None:
+                    continue
+                if pkg.name in [p.name for p in self.resolved_provides]:
                     continue
                 if not found:
                     found = True
