@@ -2,7 +2,7 @@
 # Copyright Contributors to the Rez Project
 
 
-"""
+r"""
 Rez configuration settings. Do not change this file.
 
 Settings are determined in the following way (higher number means higher
@@ -38,7 +38,7 @@ The following variables are provided if you are using rezconfig.py files:
 
 Paths should use the path separator appropriate for the operating system
 (based on Python's os.path.sep).  So for Linux paths, / should be used. On
-Windows \ (unescaped) should be used.
+Windows \ (unescaped!) should be used.
 
 Note: The comments in this file are extracted and turned into documentation. Pay
 attention to the comment formatting and follow the existing style closely.
@@ -302,6 +302,29 @@ package_cache_clean_limit = 0.5
 # Logs are written to :file:`{pkg-cache-root}/.sys/log/{filename}.log`
 package_cache_log_days = 7
 
+# Define a default minimum of 100MB of free space buffer for the cache in bytes.
+# This is required to avoid writing to a full cache and for cleaning the cache
+# when running :option:`rez-pkg-cache --clean`.
+# Note: Reported disk usage may vary across different file systems due to differences
+# in block size, allocation strategies and metadata overhead.
+# 100MB = 100 * 1024 * 1024 = 104857600.
+#
+# .. note::
+#    Reported disk usage may vary across different file systems due to differences
+#    in block size, allocation strategies and metadata overhead.
+package_cache_space_buffer = 104857600
+
+# The last variant being cached can take the cache size below the minimum buffer threshold we set.
+# To guard against this, we define a maximum cache usage threshold of 80%. We start throttling the cache
+# at this point by checking the size of each variant against the :data:`package_cache_space_buffer`.
+# If the pending variant about to be cached will take the cache size below the :data:`package_cache_space_buffer`,
+# don't cache it. When setting this value, subtract from your total disk space the fraction of disk space that
+# will be consumed by the largest variant you support and add the :data:`package_cache_space_buffer`.
+#
+# .. note::
+#    Reported disk usage may vary across different file systems due to differences
+#    in block size, allocation strategies and metadata overhead.
+package_cache_used_threshold = 80
 
 ###############################################################################
 # Package Resolution
@@ -847,6 +870,18 @@ set_prompt = True
 # false.
 prefix_prompt = True
 
+###############################################################################
+# Plugins
+#
+# Settings dedicated to plugins
+###############################################################################
+
+# Settings specific to certain plugin implementations can be found in the
+# "rezconfig" file accompanying that plugin. The settings listed here are
+# common to all plugins of that type.
+#
+# Refer to :ref:`configuring-plugins` for more information.
+plugins = {}
 
 ###############################################################################
 # Misc
@@ -1132,19 +1167,6 @@ ephemeral_styles = None
 alias_fore = "cyan"
 alias_back = None
 alias_styles = None
-
-
-###############################################################################
-# Plugin Settings
-###############################################################################
-
-# Settings specific to certain plugin implementations can be found in the
-# "rezconfig" file accompanying that plugin. The settings listed here are
-# common to all plugins of that type.
-
-plugins = {
-
-}
 
 
 ###############################################################################
