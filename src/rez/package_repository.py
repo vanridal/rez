@@ -656,5 +656,5 @@ class PackageRepositoryManager(object):
         return repo
 
 
-# singleton
+#: singleton
 package_repository_manager = PackageRepositoryManager()
